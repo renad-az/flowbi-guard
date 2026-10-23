@@ -40,6 +40,7 @@ workbook = load_workbook(source_file, read_only=True)
 try:
     errors = []
 
+    # فحص الشيتات وأسماء الأعمدة
     for sheet_name, columns in required_columns.items():
         if sheet_name not in workbook.sheetnames:
             errors.append(f"Missing sheet: {sheet_name}")
@@ -63,13 +64,65 @@ try:
                     "(header row 1)"
                 )
 
+    # نفحص القيم فقط إذا كانت بنية الملف سليمة
+    if not errors:
+        sheet = workbook["Projects"]
+        rows = sheet.iter_rows(values_only=True)
+        headers = next(rows)
+
+        project_id_index = headers.index("ProjectID")
+        seen_ids = {}
+
+        for row_number, row in enumerate(rows, start=2):
+
+            # تجاهل الصفوف الفارغة بالكامل
+            if all(value is None for value in row):
+                continue
+
+            project_id = row[project_id_index]
+
+            if (
+                project_id is None
+                or str(project_id).strip() == ""
+            ):
+                errors.append(
+                    f"Projects: Missing ProjectID "
+                    f"(row {row_number})"
+                )
+                continue
+
+            if not isinstance(project_id, str):
+                errors.append(
+                    f"Projects: ProjectID must be text "
+                    f"(row {row_number})"
+                )
+                continue
+
+            # نستخدم مفتاح مقارنة بدون مسافات وبأحرف موحدة
+            comparison_id = project_id.strip().upper()
+
+            if comparison_id in seen_ids:
+                first_row = seen_ids[comparison_id]
+
+                errors.append(
+                    f"Projects: Duplicate ProjectID "
+                    f"'{project_id}' (row {row_number}; "
+                    f"first found at row {first_row})"
+                )
+            else:
+                seen_ids[comparison_id] = row_number
+
     if errors:
-        print("BLOCKED: Workbook structure validation failed.")
+        print("BLOCKED: Validation failed.")
 
         for error in errors:
             print("-", error)
+
     else:
-        print("PASS: All required sheets and columns are present.")
+        print(
+            "PASS: Required sheets, columns, "
+            "and project IDs are valid."
+        )
 
 finally:
     workbook.close()
