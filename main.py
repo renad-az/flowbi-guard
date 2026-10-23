@@ -1,7 +1,6 @@
 from pathlib import Path
 from openpyxl import load_workbook
 
-# تحديد مكان المشروع وملف المصدر
 project_folder = Path(__file__).resolve().parent
 
 source_file = (
@@ -11,33 +10,66 @@ source_file = (
     / "FlowBI_Project_Management.xlsx"
 )
 
-# فتح ملف Excel للقراءة فقط
+required_columns = {
+    "Projects": [
+        "ProjectID", "ProjectName", "Department",
+        "ProjectManager", "City", "Program", "Priority",
+        "StartDate", "PlannedEndDate", "BudgetSAR",
+        "AsOfDate", "ProjectStatus",
+    ],
+    "WeeklySnapshots": [
+        "ProjectID", "SnapshotDate", "PlannedProgress",
+        "ActualProgress", "PlannedValueSAR",
+        "EarnedValueSAR", "ActualCostSAR", "PeriodCostSAR",
+        "EstimateToCompleteSAR", "ScheduleDelayDays",
+        "ScenarioNote",
+    ],
+    "Risks": [
+        "RiskID", "ProjectID", "RiskDescription", "Category",
+        "ProbabilityScore", "ImpactScore", "Owner",
+        "OpenedDate", "ClosedDate", "RiskStatus",
+        "Mitigation", "TargetActionDate",
+    ],
+    "Calendar": [
+        "Date", "Year", "MonthNumber", "YearMonth", "Quarter",
+    ],
+}
+
 workbook = load_workbook(source_file, read_only=True)
 
 try:
-    print("Source:", source_file)
-    print("Sheets:", workbook.sheetnames)
+    errors = []
 
-    # الشيتات التي يعتمد عليها الداشبورد
-    required_sheets = [
-        "Projects",
-        "WeeklySnapshots",
-        "Risks",
-        "Calendar",
-    ]
+    for sheet_name, columns in required_columns.items():
+        if sheet_name not in workbook.sheetnames:
+            errors.append(f"Missing sheet: {sheet_name}")
+            continue
 
-    # البحث عن الشيتات الناقصة
-    missing_sheets = [
-        name
-        for name in required_sheets
-        if name not in workbook.sheetnames
-    ]
+        sheet = workbook[sheet_name]
 
-    if missing_sheets:
-        print("BLOCKED: Missing required sheets:", missing_sheets)
+        headers = next(
+            sheet.iter_rows(
+                min_row=1,
+                max_row=1,
+                values_only=True,
+            ),
+            (),
+        )
+
+        for column_name in columns:
+            if column_name not in headers:
+                errors.append(
+                    f"{sheet_name}: Missing column '{column_name}' "
+                    "(header row 1)"
+                )
+
+    if errors:
+        print("BLOCKED: Workbook structure validation failed.")
+
+        for error in errors:
+            print("-", error)
     else:
-        print("PASS: All required sheets are present.")
+        print("PASS: All required sheets and columns are present.")
 
 finally:
-    # إغلاق الملف حتى لو حدث خطأ أثناء الفحص
     workbook.close()
